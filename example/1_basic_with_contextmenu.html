@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>jsMind - 右键菜单版本</title>
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="../style/jsmind.css"
+        />
+        <style type="text/css">
+            #jsmind_container {
+                width: 800px;
+                height: 500px;
+                border: solid 1px #ccc;
+                background: #f4f4f4;
+            }
+            
+            /* 右键菜单样式 */
+            .context-menu {
+                position: absolute;
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                z-index: 1000;
+                min-width: 120px;
+                display: none;
+            }
+            
+            .context-menu-item {
+                padding: 8px 12px;
+                cursor: pointer;
+                border-bottom: 1px solid #eee;
+                font-size: 14px;
+            }
+            
+            .context-menu-item:last-child {
+                border-bottom: none;
+            }
+            
+            .context-menu-item:hover {
+                background-color: #f5f5f5;
+            }
+            
+            .context-menu-item.disabled {
+                color: #999;
+                cursor: not-allowed;
+            }
+            
+            .context-menu-item.disabled:hover {
+                background-color: white;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="jsmind_container"></div>
+        
+        <!-- 右键菜单 -->
+        <div id="context-menu" class="context-menu">
+            <div class="context-menu-item" onclick="addChildNode(event)">添加子节点</div>
+            <div class="context-menu-item" onclick="addSiblingNode(event)">添加兄弟节点</div>
+            <div class="context-menu-item" onclick="editNode(event)">编辑节点</div>
+            <div class="context-menu-item" onclick="deleteNode(event)">删除节点</div>
+        </div>
+        
+        <script src="../es6/jsmind.js"></script>
+        <script src="../es6/jsmind.draggable-node.js"></script>
+        <script type="text/javascript">
+            let jm;
+            let contextMenu;
+            let currentNode = null;
+            
+            function load_jsmind() {
+                var mind = {
+                    meta: {
+                        name: 'demo',
+                        author: 'hizzgdev@163.com',
+                        version: '0.2',
+                    },
+                    format: 'node_array',
+                    data: [
+                        { id: 'root', isroot: true, topic: 'jsMind' },
+                        {
+                            'id': 'sub1',
+                            'parentid': 'root',
+                            'topic': '右键点击试试',
+                            'background-color': '#0000ff',
+                        },
+                        { id: 'sub11', parentid: 'sub1', topic: '可以添加子节点' },
+                        { id: 'sub12', parentid: 'sub1', topic: '可以添加兄弟节点' },
+                        { id: 'sub13', parentid: 'sub1', topic: '可以删除节点' },
+                        { id: 'sub2', parentid: 'root', topic: '功能演示' },
+                        { id: 'sub21', parentid: 'sub2', topic: '右键菜单' },
+                        {
+                            'id': 'sub22',
+                            'parentid': 'sub2',
+                            'topic': '编辑节点',
+                            'foreground-color': '#33ff33',
+                        },
+                        { id: 'sub3', parentid: 'root', topic: '更多功能' },
+                    ],
+                };
+                var options = {
+                    container: 'jsmind_container',
+                    editable: true,
+                    theme: 'primary',
+                };
+                jm = new jsMind(options);
+                jm.show(mind);
+                
+                contextMenu = document.getElementById('context-menu');
+                
+                // 添加右键事件监听
+                document.getElementById('jsmind_container').addEventListener('contextmenu', handleContextMenu);
+                document.addEventListener('click', function(e) {
+                    // 如果点击的是菜单项，不隐藏菜单
+                    if (e.target.closest('#context-menu')) {
+                        return;
+                    }
+                    hideContextMenu();
+                });
+            }
+            
+            function handleContextMenu(e) {
+                e.preventDefault();
+                
+                // 查找被右键点击的节点
+                let target = e.target;
+                while (target && target !== document.getElementById('jsmind_container')) {
+                    // jsMind使用的是自定义的<jmnode>标签
+                    if (target.tagName && target.tagName.toLowerCase() === 'jmnode') {
+                        // 找到节点元素，获取节点ID
+                        let nodeId = target.getAttribute('nodeid');
+                        if (nodeId) {
+                            currentNode = jm.get_node(nodeId);
+                            showContextMenu(e.pageX, e.pageY);
+                            return;
+                        }
+                    }
+                    target = target.parentElement;
+                }
+                
+                // 如果没有点击到节点，隐藏菜单
+                hideContextMenu();
+            }
+            
+            function showContextMenu(x, y) {
+                if (!currentNode) return;
+                
+                contextMenu.style.left = x + 'px';
+                contextMenu.style.top = y + 'px';
+                contextMenu.style.display = 'block';
+                
+                // 更新菜单项状态
+                updateMenuItems();
+            }
+            
+            function updateMenuItems() {
+                const items = contextMenu.querySelectorAll('.context-menu-item');
+                
+                // 重置所有项目状态
+                items.forEach(item => {
+                    item.classList.remove('disabled');
+                    item.style.pointerEvents = 'auto';
+                });
+                
+                // 如果是根节点，禁用删除和添加兄弟节点
+                if (currentNode && currentNode.isroot) {
+                    items[1].classList.add('disabled'); // 添加兄弟节点
+                    items[1].style.pointerEvents = 'none';
+                    items[3].classList.add('disabled'); // 删除节点
+                    items[3].style.pointerEvents = 'none';
+                }
+            }
+            
+            function hideContextMenu() {
+                contextMenu.style.display = 'none';
+                currentNode = null;
+            }
+            
+            function addChildNode(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                
+                // 保存当前节点引用，防止在操作过程中被重置
+                const targetNode = currentNode;
+                console.log('添加子节点，当前节点：', targetNode);
+                
+                if (!targetNode) {
+                    alert('没有选中的节点');
+                    hideContextMenu();
+                    return;
+                }
+                
+                hideContextMenu();
+                
+                try {
+                    const nodeId = 'node_' + Date.now();
+                    console.log('创建新节点ID：', nodeId);
+                    
+                    const newNode = jm.add_node(targetNode, nodeId, '新节点');
+                    console.log('新节点创建结果：', newNode);
+                    
+                    if (newNode) {
+                        jm.select_node(nodeId);
+                        // 自动进入编辑模式
+                        setTimeout(() => {
+                            jm.begin_edit(nodeId);
+                        }, 100);
+                    } else {
+                        alert('创建节点失败');
+                    }
+                } catch (error) {
+                    console.error('添加子节点错误：', error);
+                    alert('添加子节点时发生错误：' + error.message);
+                }
+            }
+            
+            function addSiblingNode(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                
+                // 保存当前节点引用，防止在操作过程中被重置
+                const targetNode = currentNode;
+                console.log('添加兄弟节点，当前节点：', targetNode);
+                
+                if (!targetNode || targetNode.isroot) {
+                    alert('根节点不能添加兄弟节点');
+                    hideContextMenu();
+                    return;
+                }
+                
+                hideContextMenu();
+                
+                try {
+                    const nodeId = 'node_' + Date.now();
+                    console.log('创建新节点ID：', nodeId);
+                    
+                    const newNode = jm.insert_node_after(targetNode, nodeId, '新节点');
+                    console.log('新节点创建结果：', newNode);
+                    
+                    if (newNode) {
+                        jm.select_node(nodeId);
+                        // 自动进入编辑模式
+                        setTimeout(() => {
+                            jm.begin_edit(nodeId);
+                        }, 100);
+                    } else {
+                        alert('创建节点失败');
+                    }
+                } catch (error) {
+                    console.error('添加兄弟节点错误：', error);
+                    alert('添加兄弟节点时发生错误：' + error.message);
+                }
+            }
+            
+            function editNode(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                
+                // 保存当前节点引用，防止在操作过程中被重置
+                const targetNode = currentNode;
+                console.log('编辑节点，当前节点：', targetNode);
+                
+                if (!targetNode) {
+                    alert('没有选中的节点');
+                    hideContextMenu();
+                    return;
+                }
+                
+                hideContextMenu();
+                
+                try {
+                    jm.select_node(targetNode.id);
+                    jm.begin_edit(targetNode.id);
+                } catch (error) {
+                    console.error('编辑节点错误：', error);
+                    alert('编辑节点时发生错误：' + error.message);
+                }
+            }
+            
+            function deleteNode(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                
+                // 保存当前节点引用，防止在操作过程中被重置
+                const targetNode = currentNode;
+                console.log('删除节点，当前节点：', targetNode);
+                
+                if (!targetNode || targetNode.isroot) {
+                    alert('根节点不能删除');
+                    hideContextMenu();
+                    return;
+                }
+                
+                hideContextMenu();
+                
+                if (confirm('确定要删除节点 "' + targetNode.topic + '" 吗？')) {
+                    try {
+                        const result = jm.remove_node(targetNode.id);
+                        console.log('删除节点结果：', result);
+                        if (!result) {
+                            alert('删除节点失败');
+                        }
+                    } catch (error) {
+                        console.error('删除节点错误：', error);
+                        alert('删除节点时发生错误：' + error.message);
+                    }
+                }
+            }
+            
+            // 生成唯一ID的辅助函数
+            function generateNodeId() {
+                return 'node_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            load_jsmind();
+        </script>
+    </body>
+</html> 
